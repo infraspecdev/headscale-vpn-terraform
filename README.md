@@ -1,3 +1,4 @@
+<!-- BEGIN_TF_DOCS -->
 # terraform-aws-headscale
 
 Terraform module to deploy a self-hosted [Headscale](https://github.com/juanfont/headscale) VPN server on AWS with automated user onboarding, ACL-based access control, and subnet routing.
@@ -86,7 +87,7 @@ External Services:
 - Security groups allow inbound traffic on port 8080 (Headscale API) and SSH
 - IAM instance profile grants SSM permissions for remote command execution
 
-### 2. Server Bootstrap (user_data.tpl)
+### 2. Server Bootstrap (user\_data.tpl)
 - Installs Headscale binary and creates systemd service
 - Configures Headscale with the public IP and ACL policy
 - Installs Tailscale client on the same instance
@@ -120,182 +121,62 @@ Client Device → Tailscale App → Headscale Server (Port 8080)
                             Forwards to VPC resources
 ```
 
-## Usage
+## Requirements
 
-```hcl
-module "headscale" {
-  source  = "infraspecdev/headscale/aws"
-  version = "~> 1.0"
+| Name | Version |
+|------|---------|
+| <a name="requirement_terraform"></a> [terraform](#requirement\_terraform) | >= 1.5.0 |
+| <a name="requirement_aws"></a> [aws](#requirement\_aws) | ~> 5.0 |
+| <a name="requirement_null"></a> [null](#requirement\_null) | ~> 3.0 |
 
-  vpc_id               = "vpc-xxxxxxxxx"
-  public_subnet_id     = "subnet-xxxxxxxxx"
-  vpc_cidr             = "10.0.0.0/16"
-  ssh_key_name         = "my-key"
-  ssh_private_key_path = "/tmp/my-key.pem"
-  allowed_ssh_cidr     = "1.2.3.4/32"
-  aws_region           = "ap-south-1"
+## Providers
 
-  user_groups = {
-    full_access = {
-      users       = ["rahul"]
-      allowed_ips = ["*"]
-    }
-    limited_access = {
-      users       = ["dev1"]
-      allowed_ips = ["10.0.1.5/32"]
-    }
-  }
-}
-```
+| Name | Version |
+|------|---------|
+| <a name="provider_aws"></a> [aws](#provider\_aws) | ~> 5.0 |
+| <a name="provider_null"></a> [null](#provider\_null) | ~> 3.0 |
 
-## Getting Access to VPN
+## Modules
 
-### Prerequisites
+| Name | Source | Version |
+|------|--------|---------|
+| <a name="module_headscale_security_group"></a> [headscale\_security\_group](#module\_headscale\_security\_group) | terraform-aws-modules/security-group/aws | ~> 5.3.0 |
 
-1. **AWS CLI**: Ensure AWS CLI is installed and configured with credentials
-   ```bash
-   aws --version
-   aws configure  # If not already configured
-   ```
+## Resources
 
-2. **IAM Permissions**: Your AWS user/role needs permissions to:
-   - Read SSM parameters: `ssm:GetParameter`
-   - Decrypt SecureStrings: `kms:Decrypt`
+| Name | Type |
+|------|------|
+| [aws_eip.headscale](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/eip) | resource |
+| [aws_eip_association.headscale](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/eip_association) | resource |
+| [aws_iam_instance_profile.headscale](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_instance_profile) | resource |
+| [aws_iam_role.headscale](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role) | resource |
+| [aws_iam_role_policy.headscale_ssm](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy) | resource |
+| [aws_iam_role_policy_attachment.headscale_ssm_core](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/iam_role_policy_attachment) | resource |
+| [aws_instance.headscale](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/instance) | resource |
+| [null_resource.user](https://registry.terraform.io/providers/hashicorp/null/latest/docs/resources/resource) | resource |
+| [aws_vpc.selected](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/data-sources/vpc) | data source |
 
-3. **Network Access**: Ensure your network allows outbound connections to the Headscale server IP on port 8080
+## Inputs
 
-### Step-by-Step Connection Guide
+| Name | Description | Type | Default | Required |
+|------|-------------|------|---------|:--------:|
+| <a name="input_allowed_ssh_cidr"></a> [allowed\_ssh\_cidr](#input\_allowed\_ssh\_cidr) | Your IP for SSH (e.g. 1.2.3.4/32) | `string` | n/a | yes |
+| <a name="input_ami_id"></a> [ami\_id](#input\_ami\_id) | AMI ID (Amazon Linux 2023) | `string` | `"ami-0317b0f0a0144b137"` | no |
+| <a name="input_aws_region"></a> [aws\_region](#input\_aws\_region) | AWS region for SSM parameter storage | `string` | `"ap-south-1"` | no |
+| <a name="input_headscale_version"></a> [headscale\_version](#input\_headscale\_version) | Version of headscale to install on the server | `string` | `"0.23.0"` | no |
+| <a name="input_instance_type"></a> [instance\_type](#input\_instance\_type) | EC2 instance type for the headscale server | `string` | `"t3.micro"` | no |
+| <a name="input_public_subnet_id"></a> [public\_subnet\_id](#input\_public\_subnet\_id) | ID of the public subnet for the headscale EC2 instance | `string` | n/a | yes |
+| <a name="input_ssh_key_name"></a> [ssh\_key\_name](#input\_ssh\_key\_name) | Name of the AWS SSH key pair for EC2 instance access | `string` | n/a | yes |
+| <a name="input_tags"></a> [tags](#input\_tags) | Map of tags to assign to all resources | `map(string)` | `{}` | no |
+| <a name="input_user_groups"></a> [user\_groups](#input\_user\_groups) | Map of group name to users and allowed IPs. Use ["*"] for full access. | <pre>map(object({<br/>    users       = list(string)<br/>    allowed_ips = list(string)<br/>  }))</pre> | `{}` | no |
+| <a name="input_vpc_id"></a> [vpc\_id](#input\_vpc\_id) | ID of the VPC where headscale server will be deployed | `string` | n/a | yes |
 
-#### 1. Install Tailscale Client
+## Outputs
 
-**macOS:**
-```bash
-# Via Homebrew
-brew install tailscale
-
-# Or download from https://tailscale.com/download/mac
-```
-
-**Linux (Ubuntu/Debian):**
-```bash
-curl -fsSL https://tailscale.com/install.sh | sh
-```
-
-**Windows:**
-Download installer from [https://tailscale.com/download/windows](https://tailscale.com/download/windows)
-
-**iOS/Android:**
-Install the Tailscale app from App Store or Google Play
-
-#### 2. Retrieve Your Authentication Key
-
-Your username must match one of the users defined in the `user_groups` variable during Terraform deployment.
-
-```bash
-# Replace <your-username> with your actual username
-# Replace <region> with your AWS region (e.g., ap-south-1)
-aws ssm get-parameter \
-  --name "/headscale/users/<your-username>/authkey" \
-  --with-decryption \
-  --query "Parameter.Value" \
-  --output text \
-  --region <region>
-```
-
-Example:
-```bash
-aws ssm get-parameter \
-  --name "/headscale/users/rahul/authkey" \
-  --with-decryption \
-  --query "Parameter.Value" \
-  --output text \
-  --region ap-south-1
-```
-
-**Troubleshooting Key Retrieval:**
-- If you get "ParameterNotFound", verify your username is spelled correctly and matches the Terraform configuration
-- If you get permission errors, ask your AWS admin to grant you `ssm:GetParameter` access for `/headscale/users/<your-username>/*`
-
-#### 3. Get the Headscale Server IP
-
-Retrieve the public IP from Terraform outputs:
-```bash
-terraform output headscale_public_ip
-```
-
-Or find the Elastic IP in AWS Console → EC2 → Elastic IPs → Filter by "headscale-eip"
-
-#### 4. Connect to the VPN
-
-**macOS/Linux:**
-```bash
-sudo tailscale up \
-  --login-server=http://<HEADSCALE_IP>:8080 \
-  --authkey=<YOUR_AUTH_KEY> \
-  --accept-routes
-```
-
-**Example:**
-```bash
-sudo tailscale up \
-  --login-server=http://13.233.45.67:8080 \
-  --authkey=abc123def456... \
-  --accept-routes
-```
-
-**Windows:**
-1. Open Tailscale app
-2. Click Settings → Use custom coordination server
-3. Enter: `http://<HEADSCALE_IP>:8080`
-4. Paste your auth key when prompted
-5. Enable "Accept subnet routes"
-
-**Important Flags:**
-- `--accept-routes`: Required to access VPC private resources through the subnet router
-- `--login-server`: Points to your self-hosted Headscale server instead of Tailscale's servers
-
-#### 5. Verify Connection
-
-Check your VPN status:
-```bash
-tailscale status
-```
-
-You should see:
-- Your device with a `100.64.x.x` IP address
-- The subnet-router with advertised routes
-
-Test connectivity to a private resource:
-```bash
-# Replace with an actual private IP in your VPC
-ping 10.0.1.50
-```
-
-Check which routes are active:
-```bash
-tailscale status --json | jq '.Peer[] | select(.HostName=="subnet-router") | .PrimaryRoutes'
-```
-
-### Access Control
-
-Your access to VPC resources is controlled by the ACL policy defined in `user_groups`:
-
-- **full_access group**: Can access all IPs (`*`)
-- **limited_access group**: Can only access specific IPs defined in `allowed_ips`
-
-If you cannot reach a resource, verify:
-1. Your user group membership in Terraform configuration
-2. The `allowed_ips` list for your group
-3. Security groups on the target AWS resource allow traffic from the Headscale instance
-
-### Disconnecting
-
-To disconnect from the VPN:
-```bash
-sudo tailscale down
-```
-
-To reconnect later, simply run `tailscale up` again (no need for auth key if not expired)
-
-<!-- BEGIN_TF_DOCS -->
+| Name | Description |
+|------|-------------|
+| <a name="output_auth_key_ssm_prefix"></a> [auth\_key\_ssm\_prefix](#output\_auth\_key\_ssm\_prefix) | SSM parameter prefix where auth keys are stored |
+| <a name="output_headscale_instance_id"></a> [headscale\_instance\_id](#output\_headscale\_instance\_id) | Instance ID of the headscale EC2 |
+| <a name="output_headscale_public_ip"></a> [headscale\_public\_ip](#output\_headscale\_public\_ip) | Public IP of the headscale server |
+| <a name="output_headscale_url"></a> [headscale\_url](#output\_headscale\_url) | URL of the headscale server |
 <!-- END_TF_DOCS -->
