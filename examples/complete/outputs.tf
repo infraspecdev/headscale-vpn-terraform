@@ -17,3 +17,8 @@ output "auth_key_ssm_prefix" {
   description = "SSM parameter prefix for auth keys"
   value       = module.headscale.auth_key_ssm_prefix
 }
+
+output "headplane_url" {
+  description = "URL of the Headplane web UI"
+  value       = module.headscale.headplane_url
+}

@@ -17,3 +17,8 @@ output "auth_key_ssm_prefix" {
   description = "SSM parameter prefix where auth keys are stored"
   value       = "/headscale/users"
 }
+
+output "headplane_url" {
+  description = "URL of the Headplane web UI"
+  value       = var.enable_headplane ? "http://${aws_eip.headscale.public_ip}:3000/admin" : null
+}

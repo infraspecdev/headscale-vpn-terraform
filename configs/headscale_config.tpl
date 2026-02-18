@@ -7,12 +7,14 @@ noise:
 prefixes:
   v4: 100.64.0.0/10
   v6: fd7a:115c:a1e0::/48
+  allocation: sequential
 
 derp:
   server:
     enabled: false
   urls:
     - https://controlplane.tailscale.com/derpmap/default
+  paths: []
   auto_update_enabled: true
   update_frequency: 24h
 
@@ -20,12 +22,24 @@ database:
   type: sqlite
   sqlite:
     path: /var/lib/headscale/db.sqlite
+    write_ahead_log: true
 
 dns:
   magic_dns: false
+  base_domain: headscale.local
+  nameservers:
+    global:
+      - 1.1.1.1
+      - 1.0.0.1
+    split: {}
+  search_domains: []
+  extra_records: []
 
 policy:
-  path: /etc/headscale/acl.json
+  mode: database
+
+logtail:
+  enabled: false
 
 unix_socket: /var/run/headscale/headscale.sock
 unix_socket_permission: "0770"

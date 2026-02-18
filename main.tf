@@ -20,6 +20,12 @@ locals {
   })
 }
 
+resource "random_password" "headplane_cookie_secret" {
+  count   = var.enable_headplane ? 1 : 0
+  length  = 32
+  special = false
+}
+
 resource "aws_eip" "headscale" {
   domain = "vpc"
   tags   = merge(var.tags, { Name = "headscale-eip" })
@@ -38,9 +44,13 @@ resource "aws_instance" "headscale" {
     HEADSCALE_VERSION = var.headscale_version
     VPC_CIDR          = data.aws_vpc.selected.cidr_block
     ACL_POLICY        = local.acl_policy
+    ENABLE_HEADPLANE  = tostring(var.enable_headplane)
     HEADSCALE_CONFIG = templatefile("${path.module}/configs/headscale_config.tpl", {
       HEADSCALE_IP = aws_eip.headscale.public_ip
     })
+    HEADPLANE_CONFIG = var.enable_headplane ? templatefile("${path.module}/configs/headplane_config.tpl", {
+      COOKIE_SECRET = random_password.headplane_cookie_secret[0].result
+    }) : ""
   })
 
   root_block_device {

@@ -10,5 +10,6 @@ module "headscale" {
   instance_type     = var.instance_type
   headscale_version = var.headscale_version
   user_groups       = var.user_groups
+  enable_headplane  = true
   tags              = var.tags
 }

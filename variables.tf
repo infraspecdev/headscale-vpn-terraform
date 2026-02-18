@@ -31,9 +31,9 @@ variable "instance_type" {
 }
 
 variable "headscale_version" {
-  description = "Version of headscale to install on the server"
+  description = "Version of headscale to install on the server (>= 0.26.0 required for Headplane)"
   type        = string
-  default     = "0.23.0"
+  default     = "0.27.1"
 }
 
 variable "aws_region" {
@@ -49,6 +49,12 @@ variable "user_groups" {
     allowed_ips = list(string)
   }))
   default = {}
+}
+
+variable "enable_headplane" {
+  description = "Enable Headplane web UI for managing Headscale"
+  type        = bool
+  default     = true
 }
 
 variable "tags" {

@@ -6,22 +6,33 @@ module "headscale_security_group" {
   description = "Headscale server"
   vpc_id      = var.vpc_id
 
-  ingress_with_cidr_blocks = [
-    {
-      from_port   = 22
-      to_port     = 22
-      protocol    = "tcp"
-      cidr_blocks = var.allowed_ssh_cidr
-      description = "SSH"
-    },
-    {
-      from_port   = 8080
-      to_port     = 8080
-      protocol    = "tcp"
-      cidr_blocks = "0.0.0.0/0"
-      description = "Headscale API"
-    },
-  ]
+  ingress_with_cidr_blocks = concat(
+    [
+      {
+        from_port   = 22
+        to_port     = 22
+        protocol    = "tcp"
+        cidr_blocks = var.allowed_ssh_cidr
+        description = "SSH"
+      },
+      {
+        from_port   = 8080
+        to_port     = 8080
+        protocol    = "tcp"
+        cidr_blocks = "0.0.0.0/0"
+        description = "Headscale API"
+      },
+    ],
+    var.enable_headplane ? [
+      {
+        from_port   = 3000
+        to_port     = 3000
+        protocol    = "tcp"
+        cidr_blocks = var.allowed_ssh_cidr
+        description = "Headplane Web UI"
+      },
+    ] : []
+  )
 
   egress_with_cidr_blocks = [
     {

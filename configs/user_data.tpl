@@ -25,8 +25,11 @@ done
 # Create user (ignore error if already exists)
 sudo headscale users create "$USERNAME" 2>/dev/null || true
 
-# Create preauth key
-sudo headscale preauthkeys create --user "$USERNAME" --reusable --expiration 365d > /dev/null 2>&1 || true
+# Get user ID (0.27+ requires numeric ID for preauthkeys)
+USER_ID=$(sudo headscale users list -o json | jq -r ".[] | select(.name == \"$USERNAME\") | .id")
+
+# Create preauth key using user ID
+sudo headscale preauthkeys create --user "$USER_ID" --reusable --expiration 365d > /dev/null 2>&1 || true
 
 # Read key from SQLite (reliable, avoids CLI output bugs)
 KEY=$(sudo sqlite3 /var/lib/headscale/db.sqlite "SELECT key FROM pre_auth_keys WHERE user_id = (SELECT id FROM users WHERE name = '$USERNAME') ORDER BY created_at DESC LIMIT 1")
@@ -55,7 +58,7 @@ cat > /etc/headscale/config.yaml << 'CONFIGEOF'
 ${HEADSCALE_CONFIG}
 CONFIGEOF
 
-# Write ACL policy
+# Write ACL policy file (loaded into database after headscale starts)
 cat > /etc/headscale/acl.json << 'ACLEOF'
 ${ACL_POLICY}
 ACLEOF
@@ -84,11 +87,16 @@ systemctl daemon-reload
 systemctl enable headscale
 systemctl start headscale
 
-# Wait for headscale
+# Wait for headscale to be fully ready
 for i in $(seq 1 30); do
-  headscale version 2>/dev/null && break
+  if headscale users list > /dev/null 2>&1; then
+    break
+  fi
   sleep 5
 done
+
+# Load ACL policy into database
+headscale policy set -f /etc/headscale/acl.json 2>/dev/null || true
 
 # Enable IP forwarding (for subnet routing)
 echo 'net.ipv4.ip_forward = 1' >> /etc/sysctl.d/99-tailscale.conf
@@ -100,11 +108,53 @@ curl -fsSL https://tailscale.com/install.sh | sh
 
 # Create subnet-router user, get key, connect as subnet router
 headscale users create subnet-router
-AUTH_KEY=$(headscale preauthkeys create --user subnet-router --reusable --expiration 87600h)
+SUBNET_USER_ID=$(headscale users list -o json | jq -r '.[] | select(.name == "subnet-router") | .id')
+AUTH_KEY=$(headscale preauthkeys create --user "$SUBNET_USER_ID" --reusable --expiration 87600h)
 tailscale up --login-server=http://127.0.0.1:8080 --authkey="$AUTH_KEY" --advertise-routes=${VPC_CIDR} --accept-dns=false
 
-# Approve routes
+# Approve routes - get the node ID and approve the VPC CIDR route
 sleep 5
-headscale routes list -o json | jq -r '.[].id' | while read ROUTE_ID; do
-  headscale routes enable -r "$ROUTE_ID"
-done
+NODE_ID=$(headscale nodes list -o json | jq -r '.[] | select(.user.name == "subnet-router") | .id')
+if [ -n "$NODE_ID" ]; then
+  headscale routes approve --identifier "$NODE_ID" --routes "${VPC_CIDR}" 2>/dev/null || true
+fi
+
+# --- Headplane Web UI ---
+if [ "${ENABLE_HEADPLANE}" = "true" ]; then
+
+  # Install Docker
+  yum install -y docker
+  systemctl enable docker
+  systemctl start docker
+
+  # Generate a Headscale API key for Headplane login
+  HEADPLANE_API_KEY=$(headscale apikeys create --expiration 90d)
+
+  # Store API key in SSM for retrieval
+  INSTANCE_REGION=$(curl -s http://169.254.169.254/latest/meta-data/placement/region)
+  aws ssm put-parameter \
+    --name "/headscale/headplane/apikey" \
+    --value "$HEADPLANE_API_KEY" \
+    --type SecureString \
+    --overwrite \
+    --region "$INSTANCE_REGION" 2>/dev/null || true
+
+  # Write Headplane config
+  mkdir -p /etc/headplane
+  cat > /etc/headplane/config.yaml << 'HEADPLANEEOF'
+${HEADPLANE_CONFIG}
+HEADPLANEEOF
+
+  # Run Headplane container
+  docker run -d \
+    --name headplane \
+    --restart unless-stopped \
+    --network host \
+    -v /etc/headplane/config.yaml:/etc/headplane/config.yaml:ro \
+    -v /etc/headscale:/etc/headscale \
+    -v /var/run/headscale:/var/run/headscale \
+    -v /var/lib/headscale:/var/lib/headscale:ro \
+    -v headplane-data:/var/lib/headplane \
+    ghcr.io/tale/headplane:latest
+
+fi

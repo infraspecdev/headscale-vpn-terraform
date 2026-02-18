@@ -7,3 +7,8 @@ output "headscale_url" {
   description = "URL of the headscale server"
   value       = module.headscale.headscale_url
 }
+
+output "headplane_url" {
+  description = "URL of the Headplane web UI"
+  value       = module.headscale.headplane_url
+}
