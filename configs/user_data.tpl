@@ -110,14 +110,13 @@ curl -fsSL https://tailscale.com/install.sh | sh
 headscale users create subnet-router
 SUBNET_USER_ID=$(headscale users list -o json | jq -r '.[] | select(.name == "subnet-router") | .id')
 AUTH_KEY=$(headscale preauthkeys create --user "$SUBNET_USER_ID" --reusable --expiration 87600h)
-tailscale up --login-server=http://127.0.0.1:8080 --authkey="$AUTH_KEY" --advertise-routes=${VPC_CIDR} --accept-dns=false
+tailscale up --login-server=http://127.0.0.1:8080 --authkey="$AUTH_KEY" --advertise-routes=${VPC_CIDR} --accept-dns=false --timeout=30s || true
 
-# Approve routes - get the node ID and approve the VPC CIDR route
+# Approve routes (list all route IDs, then enable each)
 sleep 5
-NODE_ID=$(headscale nodes list -o json | jq -r '.[] | select(.user.name == "subnet-router") | .id')
-if [ -n "$NODE_ID" ]; then
-  headscale routes approve --identifier "$NODE_ID" --routes "${VPC_CIDR}" 2>/dev/null || true
-fi
+headscale routes list -o json | jq -r '.[].id' | while read ROUTE_ID; do
+  headscale routes enable -r "$ROUTE_ID"
+done
 
 # --- Headplane Web UI ---
 if [ "${ENABLE_HEADPLANE}" = "true" ]; then
@@ -145,15 +144,19 @@ if [ "${ENABLE_HEADPLANE}" = "true" ]; then
 ${HEADPLANE_CONFIG}
 HEADPLANEEOF
 
+  # Inject the runtime-generated API key into the Headplane config
+  sed -i "s|__HEADPLANE_API_KEY__|$HEADPLANE_API_KEY|g" /etc/headplane/config.yaml
+
   # Run Headplane container
   docker run -d \
     --name headplane \
     --restart unless-stopped \
     --network host \
+    --pid=host \
     -v /etc/headplane/config.yaml:/etc/headplane/config.yaml:ro \
     -v /etc/headscale:/etc/headscale \
     -v /var/run/headscale:/var/run/headscale \
-    -v /var/lib/headscale:/var/lib/headscale:ro \
+    -v /var/lib/headscale:/var/lib/headscale \
     -v headplane-data:/var/lib/headplane \
     ghcr.io/tale/headplane:latest
 
